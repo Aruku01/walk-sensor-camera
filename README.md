@@ -71,8 +71,8 @@ Raspberry Pi のカメラ映像を MediaPipe Pose で解析し、人の姿勢（
 
 ## 関連リポジトリ
 
-- [walk-sensor](../walk-sensor)：カメラを使わない、歩行検知のみの版
-- [camera-audio](../camera-audio)：ラズパイ側の人検知プログラム
+- [walk-sensor](https://aruku01.github.io/walk-sensor-camera/pc.html)：カメラを使わない、歩行検知のみの版
+- [camera-audio](https://aruku01.github.io/walk-sensor-camera/)：ラズパイ側の人検知プログラム
 
 ## 既知の制約・今後の課題
 

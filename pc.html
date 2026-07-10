@@ -51,4 +51,61 @@
     const soundBtn = document.getElementById('soundBtn');
     const soundState = document.getElementById('soundState');
     const countEl = document.getElementById('count');
-    const sideEl =
+    const sideEl = document.getElementById('side');
+    const statusEl = document.getElementById('status');
+    const zoneEl = document.getElementById('zone');
+
+    // 足音ファイルを準備
+    const footAudio = new Audio('footstep-star.mp3');
+    let soundOn = false;
+
+    function playFootstep() {
+      if (!soundOn) return;
+      footAudio.currentTime = 0;   // 鳴らすたびに最初から
+      footAudio.play().catch(() => {});
+    }
+
+    // 音を有効にするボタン（ユーザー操作のうちに一度再生準備する）
+    soundBtn.addEventListener('click', () => {
+      footAudio.play().then(() => {
+        footAudio.pause();
+        footAudio.currentTime = 0;
+        soundOn = true;
+        soundState.textContent = '音: オン';
+      }).catch(() => {
+        soundState.textContent = '音の準備に失敗しました';
+      });
+      soundBtn.style.display = 'none';
+    });
+
+    // ゾーンの状態を表示（カメラの検知結果）
+    onValue(zoneRef, (snapshot) => {
+      const data = snapshot.val();
+      const present = data && data.present === true;
+      if (present) {
+        zoneEl.textContent = 'ゾーン: 人がいます';
+        zoneEl.className = 'in';
+      } else {
+        zoneEl.textContent = 'ゾーン: 人がいません';
+        zoneEl.className = 'out';
+      }
+    });
+
+    // 歩行を受信して足音を鳴らす・カウント
+    let lastTime = 0;
+    let count = 0;
+    onValue(stepRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data || !data.time) return;
+      if (data.time === lastTime) return;
+      lastTime = data.time;
+
+      count++;
+      countEl.textContent = count;
+      sideEl.textContent = (data.side === 'L' ? '左足' : '右足');
+      statusEl.textContent = '最終受信: ' + new Date(data.time).toLocaleTimeString();
+      playFootstep();
+    });
+  </script>
+</body>
+</html>

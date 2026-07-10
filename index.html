@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>歩行センサー（カメラ連動・スマホ用）</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    #now { font-size: 32px; margin: 10px; }
+    #zone { font-size: 24px; margin: 15px; padding: 10px; border-radius: 8px; }
+    .in { background: #2a7; color: white; }
+    .out { background: #eee; color: #666; }
+    #count { font-size: 44px; color: #2a7; }
+    #sent { font-size: 24px; color: #57a; }
+    #conn { font-size: 15px; color: #888; }
+    button { font-size: 22px; padding: 15px 40px; }
+  </style>
+</head>
+<body>
+  <h2>歩行センサー（カメラ連動）</h2>
+  <button id="startBtn">スタート</button>
+  <div>動き: <span id="now">-</span></div>
+  <div id="zone" class="out">ゾーン外（送信しません）</div>
+  <div>自分の歩数: <span id="count">0</span></div>
+  <div>送信数: <span id="sent">0</span></div>
+  <div id="conn">Firebase: 未接続</div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBr20JpcVm6BQ3vmFKnqBebsqBZ9gh-AIA",
+      authDomain: "walk-sound.firebaseapp.com",
+      databaseURL: "https://walk-sound-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "walk-sound",
+      storageBucket: "walk-sound.firebasestorage.app",
+      messagingSenderId: "412603374687",
+      appId: "1:412603374687:web:f073d8083e2c4a81a18fea"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const stepRef = ref(db, 'step');
+    const zoneRef = ref(db, 'zone');
+    document.getElementById('conn').textContent = 'Firebase: 接続済み';
+
+    const startBtn = document.getElementById('startBtn');
+    const nowEl = document.getElementById('now');
+    const zoneEl = document.getElementById('zone');
+    const countEl = document.getElementById('count');
+    const sentEl = document.getElementById('sent');
+
+    const THRESHOLD = 3.0;
+    const REFRACTORY_MS = 250;
+    const RHYTHM_MIN_MS = 350;
+    const RHYTHM_MAX_MS = 800;
+    const NEED_RHYTHM = 4;
+
+    let count = 0;
+    let sent = 0;
+    let lastPeakTime = 0;
+    let rhythmCount = 0;
+    let aboveThreshold = false;
+    let isWalking = false;
+    let inZone = false;
+
+    onValue(zoneRef, (snapshot) => {
+      const data = snapshot.val();
+      inZone = data && data.present === true;
+      if (inZone) {
+        zoneEl.textContent = 'ゾーン内（送信します）';
+        zoneEl.className = 'in';
+      } else {
+        zoneEl.textContent = 'ゾーン外（送信しません）';
+        zoneEl.className = 'out';
+      }
+    });
+
+    startBtn.addEventListener('click', async () => {
+      if (typeof DeviceMotionEvent !== 'undefined' &&
+          typeof DeviceMotionEvent.requestPermission === 'function') {
+        const res = await DeviceMotionEvent.requestPermission();
+        if (res !== 'granted') { nowEl.textContent = '許可されませんでした'; return; }
+      }
+      window.addEventListener('devicemotion', (e) => {
+        const a = e.acceleration;
+        if (!a || a.x === null) { nowEl.textContent = '取得不可'; return; }
+        const mag = Math.sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
+        nowEl.textContent = mag.toFixed(1);
+        const now = Date.now();
+
+        if (mag > THRESHOLD && !aboveThreshold) {
+          aboveThreshold = true;
+          const interval = now - lastPeakTime;
+          if (interval >= REFRACTORY_MS) {
+            if (interval >= RHYTHM_MIN_MS && interval <= RHYTHM_MAX_MS) {
+              rhythmCount++;
+            } else {
+              rhythmCount = 1;
+            }
+            lastPeakTime = now;
+            if (rhythmCount >= NEED_RHYTHM) isWalking = true;
+
+            if (isWalking) {
+              count++;
+              countEl.textContent = count;
+              if (inZone) {
+                set(stepRef, { time: now, side: (count % 2 === 0 ? 'L' : 'R') });
+                sent++;
+                sentEl.textContent = sent;
+              }
+            }
+          }
+        } else if (mag < THRESHOLD) {
+          aboveThreshold = false;
+        }
+
+        if (now - lastPeakTime > RHYTHM_MAX_MS) {
+          isWalking = false;
+          rhythmCount = 0;
+        }
+      });
+      startBtn.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
